@@ -28,8 +28,7 @@ int main(int argc, char* argv[])
 	ser_addr.sin_addr.S_un.S_addr = htonl(INADDR_ANY);
 	ser_addr.sin_port = htons(0x1234);
 	bind(s, (sockaddr*)&ser_addr, sizeof(ser_addr));
-	unsigned long arg;
-	ioctlsocket(s, FIONBIO, &arg);
+	unsigned long arg = 1;
 	listen(s, 5);
 
 	while (1) {
@@ -39,35 +38,26 @@ int main(int argc, char* argv[])
 		if (newsock == -1) {
 			break;
 		}
-		printf("accept a connection\n");
+		printf("accept a connection , socket = %d\n",newsock);
 		param.newsock = newsock;
 		param.queue_index = queue_status_pos;
 		dwThrdParam = (DWORD)&param;
 
-		hThread = CreateThread(
-			NULL,                        // no security attributes 
-			0,                           // use default stack size  
-			server_proc_2,                  // thread function 
-			&newsock,                // argument to thread function 
-			0,                           // use default creation flags 
-			&dwThreadId);                // returns the thread identifier 
-		//queue_list_table[queue_status_pos].proc_index = dwThreadId;
-		
-
-
-
-
-		/*
-		//选一个进程
+		//选一个进程和一个槽位
 		while(queue_status_table[queue_status_pos] == QUEUE_FULL)
 		{
 			queue_status_pos++;
 			if (queue_status_pos >= SOCK_QUEUE_NUM)
 			{
-				printf("无法接受新连接");
+				char buf[] = "Server busy, try later\n";
+				printf("check old thread");
+				queue_status_pos = 0;
+				send(newsock, buf, sizeof(buf), 0);
+				closesocket(newsock);
 				continue;
 			}
 		}
+
 		if (queue_list_table[queue_status_pos].queue_proc_set == PROC_OFF)
 		{
 			hThread = CreateThread(
@@ -80,6 +70,7 @@ int main(int argc, char* argv[])
 				queue_list_table[queue_status_pos].proc_index = dwThreadId;
 		}
 		//将套接字加入某个队列
+		printf("sock:%d\tin queue:%d\n", newsock, queue_status_pos);
 		queue_list_table[queue_status_pos].sock_queue[queue_list_table[queue_status_pos].sock_num]=newsock;
 		queue_list_table[queue_status_pos].sock_num++;
 		if (queue_list_table[queue_status_pos].sock_num >= SOCK_QUEUE_SIZE)
@@ -87,8 +78,6 @@ int main(int argc, char* argv[])
 			queue_list_table[queue_status_pos].queue_status = QUEUE_FULL;
 			queue_status_table[queue_status_pos] = QUEUE_FULL;
 		}
-			
-		*/
 
 	}
 	closesocket(s);

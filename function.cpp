@@ -21,14 +21,26 @@ DWORD __stdcall server_proc(LPVOID lpParam)
 
 	timeout.tv_sec = 0;
 	timeout.tv_usec = 1;
+	FD_ZERO(&readfds);
+	FD_ZERO(&writefds);
 
 	while (1)
 	{
+		//是否还有需要管理的套接字
+		if (queue_ptr->sock_num == 0)
+		{
+			queue_status_table[queue_ptr->proc_index] = PROC_OFF;
+			queue_ptr->sock_num = 0;
+			memset(queue_ptr->sock_queue, 0, SOCK_QUEUE_SIZE);
+			break;
+		}
+		//读写队列赋值
 		make_fdlist(queue_ptr, &readfds);
 		make_fdlist(queue_ptr, &writefds);
 		retval = select(0, &readfds, &writefds, NULL, &timeout);
 		if (retval == SOCKET_ERROR)
 			printf("GetLastError is:%d\n", GetLastError());
+		//循环检查套接字队列
 		for (int count = 0; count < SOCK_QUEUE_SIZE; count++)
 		{
 			if (queue_ptr->sock_queue[count] == 0)
@@ -36,10 +48,13 @@ DWORD __stdcall server_proc(LPVOID lpParam)
 			sock = queue_ptr->sock_queue[count];
 			if (FD_ISSET(sock, &readfds))
 			{
+				//收了就发
 				retval = recv(sock, recv_array, sizeof(recv_array), 0);
 				if (retval == 0) {
 					closesocket(sock);
 					printf("close socket:%d\n", sock);
+					queue_ptr->sock_num--;
+					delete_list(sock, queue_ptr);
 					continue;
 				}
 				else if (retval == SOCKET_ERROR) {
@@ -52,7 +67,7 @@ DWORD __stdcall server_proc(LPVOID lpParam)
 					continue;
 				}
 				recv_array[retval] = 0;
-				printf("recv:%d bytes\n", retval);
+				printf("recv:%d\t\t bytes\n", retval);
 				send(sock, recv_array, retval, 0);
 			}
 			if (FD_ISSET(sock, &writefds))

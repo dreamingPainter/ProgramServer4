@@ -1,10 +1,10 @@
 #pragma once
-#define SOCK_QUEUE_SIZE		100
-#define SOCK_QUEUE_NUM		50
-#define QUEUE_FULL			1
-#define QUEUE_IDLE			0
-#define PROC_ON				1
-#define PROC_OFF			0
+#define SOCK_QUEUE_SIZE		3		//一个套接字管理队列的大小
+#define SOCK_QUEUE_NUM		50		//套接字管理队列的数目
+#define QUEUE_FULL			1		//队列满
+#define QUEUE_IDLE			0		//队列未满
+#define PROC_ON				1		//某管理队列是已有线程
+#define PROC_OFF			0		
 #define FD_SETSIZE			SOCK_QUEUE_SIZE		
 #include "stdio.h"
 #include <stdint.h>
