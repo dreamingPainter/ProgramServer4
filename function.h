@@ -9,6 +9,7 @@
 #include "stdio.h"
 #include <stdint.h>
 #include "winsock.h"
+#include <errno.h>
 
 typedef struct select_queue_manage_list {
 	DWORD	proc_index = 0;
@@ -19,9 +20,10 @@ typedef struct select_queue_manage_list {
 }select_queue_manage_list;
 
 typedef struct recv_buf {
-	SOCKET sock;
-	char* ptr;
-	char* next;
+	SOCKET sock = INVALID_SOCKET;
+	char *ptr = NULL;
+	recv_buf *next = NULL;
+	int len;
 }recv_buf;
 
 typedef struct proc_param {

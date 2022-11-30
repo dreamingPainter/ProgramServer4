@@ -70,7 +70,7 @@ int main(int argc, char* argv[])
 				queue_list_table[queue_status_pos].proc_index = dwThreadId;
 		}
 		//将套接字加入某个队列
-		printf("sock:%d\tin queue:%d\n", newsock, queue_status_pos);
+		printf("# NEWSOCK!!!======================== SOCKET:%d ====== IN QUEUE:%d ========================\n", newsock, queue_status_pos);
 		queue_list_table[queue_status_pos].sock_queue[queue_list_table[queue_status_pos].sock_num]=newsock;
 		queue_list_table[queue_status_pos].sock_num++;
 		if (queue_list_table[queue_status_pos].sock_num >= SOCK_QUEUE_SIZE)

@@ -13,19 +13,30 @@ DWORD __stdcall server_proc(LPVOID lpParam)
 	fd_set readfds, writefds;
 	proc_param *param_ptr = (proc_param*)lpParam;
 	SOCKET sock;
-	int retval,len;
+	int retval,len,data_size;
 	timeval timeout;
 	select_queue_manage_list* queue_ptr = &queue_list_table[param_ptr->queue_index];
-	char recv_array[4096];
-	recv_buf *buffer;
+	char recv_array[1024];
+	recv_buf *buffer_head,*buffer_tail,*ptr;
+	long unsigned int arg = 1;//套接字设置为非阻塞模式
 
 	timeout.tv_sec = 0;
 	timeout.tv_usec = 1;
 	FD_ZERO(&readfds);
 	FD_ZERO(&writefds);
 
+	//初始化
+
+
+	//buffer_head 的sock值表示未发出的数据块个数
+	buffer_head = (recv_buf*)malloc(sizeof(recv_buf));
+	buffer_head->sock = 0;
+	buffer_tail = buffer_head;
+	ptr = buffer_head;
+
 	while (1)
 	{
+		retval = 0;
 		//是否还有需要管理的套接字
 		if (queue_ptr->sock_num == 0)
 		{
@@ -46,6 +57,7 @@ DWORD __stdcall server_proc(LPVOID lpParam)
 			if (queue_ptr->sock_queue[count] == 0)
 				continue;
 			sock = queue_ptr->sock_queue[count];
+			ioctlsocket(sock, FIONBIO, &arg);
 			if (FD_ISSET(sock, &readfds))
 			{
 				//收了就发
@@ -59,7 +71,7 @@ DWORD __stdcall server_proc(LPVOID lpParam)
 				}
 				else if (retval == SOCKET_ERROR) {
 					retval = WSAGetLastError();
-					if (retval == WSAEWOULDBLOCK)
+					if (retval == WSAEWOULDBLOCK|errno==EAGAIN|errno==EINTR)
 						continue;
 					closesocket(sock);
 					printf("close socket:%d\n",sock);
@@ -67,14 +79,61 @@ DWORD __stdcall server_proc(LPVOID lpParam)
 					continue;
 				}
 				recv_array[retval] = 0;
-				printf("recv:%d\t\t bytes\n", retval);
-				send(sock, recv_array, retval, 0);
+				printf("socket:%d\trecv:%d\t\t bytes\n", sock,retval);
+				data_size = retval;
+				retval = send(sock, recv_array, retval, 0);
+
+				//对暂时没有发出去的数据的处理
+				if (retval == 0)
+					printf("socket:%d\tsend nothing\n", sock);
+				else if (retval > 0)
+					printf("socket:%d\tsend %d\t\tbytes\n", sock, retval);
+				else if (retval < 0)
+				{
+					if (errno == EAGAIN)
+					{
+						buffer_head->sock++;
+						buffer_tail->next = (recv_buf*)malloc(sizeof(recv_buf));
+						buffer_tail = buffer_tail->next;
+
+						buffer_tail->sock = sock;
+						buffer_tail->len = data_size + 1;
+						buffer_tail->ptr = (char*)malloc(sizeof(char) * (data_size + 1));
+						strcpy_s(buffer_tail->ptr, data_size + 1, recv_array);
+						buffer_tail->next = NULL;
+					}
+				}
 			}
+
+			//增加了很多处理和定位工作，非常糟糕
 			if (FD_ISSET(sock, &writefds))
 			{
-				
+				recv_buf *p;
+				ptr = buffer_head;
+				for (int count = 0; count < buffer_head->sock; count++)
+				{
+					if (ptr->next->sock == sock)
+					{
+						char buf[1024];
+						strcpy_s(buf, ptr->next->len,ptr->next->ptr);
+						retval = send(sock, buf, ptr->next->len, 0);
+						if (retval > 0)
+						{
+							printf("socket:%d\tsend %d\t\tbytes\n", sock, retval);
+							p = ptr->next;
+							ptr->next = ptr->next->next;
+							free(p);
+							
+						}
+						else if (errno == EAGAIN|errno==EWOULDBLOCK|errno==EINTR)
+							break;
+					}
+					ptr = ptr->next;
+				}
 			}
 		}
+		FD_ZERO(&writefds);
+		FD_ZERO(&readfds);
 	}
 	return 0;
 }
