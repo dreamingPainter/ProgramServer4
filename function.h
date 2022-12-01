@@ -1,5 +1,5 @@
 #pragma once
-#define SOCK_QUEUE_SIZE		1		//一个套接字管理队列的大小
+#define SOCK_QUEUE_SIZE		10		//一个套接字管理队列的大小
 #define SOCK_QUEUE_NUM		50		//套接字管理队列的数目
 #define QUEUE_FULL			1		//队列满
 #define QUEUE_IDLE			0		//队列未满

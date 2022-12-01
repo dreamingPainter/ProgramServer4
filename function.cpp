@@ -58,7 +58,7 @@ DWORD __stdcall server_proc(LPVOID lpParam)
 				retval = recv(sock, recv_array, sizeof(recv_array), 0);
 				if (retval == 0) {
 					closesocket(sock);
-					printf("close socket:%d\n", sock);
+					printf("LINE %d:close socket:%d,GetLastError:%d\n",__LINE__, sock, WSAGetLastError());
 					delete_list(sock, queue_ptr);
 					//无套接字
 					if (queue_ptr->sock_num == 0)
@@ -75,7 +75,7 @@ DWORD __stdcall server_proc(LPVOID lpParam)
 					if (retval == WSAEWOULDBLOCK||errno==EAGAIN||errno==EINTR)
 						continue;
 					closesocket(sock);
-					printf("close socket:%d\n",sock);
+					printf("LINE %d:close socket:%d,GetLastError:%d\n", __LINE__, sock, WSAGetLastError());
 					delete_list(sock, queue_ptr);
 					//无套接字
 					if (queue_ptr->sock_num == 0)

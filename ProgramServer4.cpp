@@ -31,6 +31,8 @@ int main(int argc, char* argv[])
 	unsigned long arg = 1;
 	listen(s, 5);
 
+	printf("# START SERVER!!!========================= IP:%d PORT:%d ========================\n", ntohl(ser_addr.sin_addr.S_un.S_addr), ntohs(ser_addr.sin_port));
+
 	while (1) {
 	start:
 		len = sizeof(remote_addr);
