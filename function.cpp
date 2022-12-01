@@ -12,13 +12,12 @@ DWORD __stdcall server_proc(LPVOID lpParam)
 {
 	fd_set readfds, writefds;
 	proc_param *param_ptr = (proc_param*)lpParam;
-	SOCKET sock;
+	SOCKET sock,send_s;
 	int retval,len,data_size;
 	timeval timeout;
 	select_queue_manage_list* queue_ptr = &queue_list_table[param_ptr->queue_index];
-	char recv_array[1024];
+	char recv_array[100000];
 	recv_buf *buffer_head,*buffer_tail,*ptr;
-	long unsigned int arg = 1;//套接字设置为非阻塞模式
 
 	timeout.tv_sec = 0;
 	timeout.tv_usec = 1;
@@ -38,26 +37,21 @@ DWORD __stdcall server_proc(LPVOID lpParam)
 	{
 		retval = 0;
 		//是否还有需要管理的套接字
-		if (queue_ptr->sock_num == 0)
-		{
-			queue_status_table[queue_ptr->proc_index] = PROC_OFF;
-			queue_ptr->sock_num = 0;
-			memset(queue_ptr->sock_queue, 0, SOCK_QUEUE_SIZE);
-			break;
-		}
+
 		//读写队列赋值
 		make_fdlist(queue_ptr, &readfds);
 		make_fdlist(queue_ptr, &writefds);
 		retval = select(0, &readfds, &writefds, NULL, &timeout);
-		if (retval == SOCKET_ERROR)
-			printf("GetLastError is:%d\n", GetLastError());
+		
+		/*if (retval == SOCKET_ERROR)
+			printf("GetLastError is:%d\n", GetLastError());*/
 		//循环检查套接字队列
 		for (int count = 0; count < SOCK_QUEUE_SIZE; count++)
 		{
 			if (queue_ptr->sock_queue[count] == 0)
 				continue;
 			sock = queue_ptr->sock_queue[count];
-			ioctlsocket(sock, FIONBIO, &arg);
+
 			if (FD_ISSET(sock, &readfds))
 			{
 				//收了就发
@@ -65,20 +59,35 @@ DWORD __stdcall server_proc(LPVOID lpParam)
 				if (retval == 0) {
 					closesocket(sock);
 					printf("close socket:%d\n", sock);
-					queue_ptr->sock_num--;
 					delete_list(sock, queue_ptr);
+					//无套接字
+					if (queue_ptr->sock_num == 0)
+					{
+						queue_status_table[queue_ptr->queue_status] = PROC_OFF;
+						queue_ptr->sock_num = 0;
+						memset(queue_ptr->sock_queue, 0, SOCK_QUEUE_SIZE);
+						return 0;
+					}
 					continue;
 				}
 				else if (retval == SOCKET_ERROR) {
 					retval = WSAGetLastError();
-					if (retval == WSAEWOULDBLOCK|errno==EAGAIN|errno==EINTR)
+					if (retval == WSAEWOULDBLOCK||errno==EAGAIN||errno==EINTR)
 						continue;
 					closesocket(sock);
 					printf("close socket:%d\n",sock);
 					delete_list(sock, queue_ptr);
+					//无套接字
+					if (queue_ptr->sock_num == 0)
+					{
+						queue_status_table[queue_ptr->queue_status] = PROC_OFF;
+						queue_ptr->sock_num = 0;
+						memset(queue_ptr->sock_queue, 0, SOCK_QUEUE_SIZE);
+						return 0;
+					}
 					continue;
 				}
-				recv_array[retval] = 0;
+				//recv_array[retval] = 0;
 				printf("socket:%d\trecv:%d\t\t bytes\n", sock,retval);
 				data_size = retval;
 				retval = send(sock, recv_array, retval, 0);
@@ -97,41 +106,45 @@ DWORD __stdcall server_proc(LPVOID lpParam)
 						buffer_tail = buffer_tail->next;
 
 						buffer_tail->sock = sock;
-						buffer_tail->len = data_size + 1;
+						buffer_tail->len = data_size;
 						buffer_tail->ptr = (char*)malloc(sizeof(char) * (data_size + 1));
 						strcpy_s(buffer_tail->ptr, data_size + 1, recv_array);
 						buffer_tail->next = NULL;
+					}
+					else {
+						closesocket(sock);
+						printf("close socket:%d\n", sock);
+						delete_list(sock, queue_ptr);
 					}
 				}
 			}
 
 			//增加了很多处理和定位工作，非常糟糕
-			if (FD_ISSET(sock, &writefds))
+			//之前将写套接字的处理放在这了
+		}
+
+		ptr = buffer_head;
+		recv_buf* p;
+		for (int count = 0; count < buffer_head->sock; count++)
+		{
+			if (FD_ISSET(ptr->next->sock, &writefds))
 			{
-				recv_buf *p;
-				ptr = buffer_head;
-				for (int count = 0; count < buffer_head->sock; count++)
+				char buf[10000];
+				strcpy_s(buf, ptr->next->len, ptr->next->ptr);
+				retval = send(sock, buf, ptr->next->len, 0);
+				if (retval > 0)
 				{
-					if (ptr->next->sock == sock)
-					{
-						char buf[1024];
-						strcpy_s(buf, ptr->next->len,ptr->next->ptr);
-						retval = send(sock, buf, ptr->next->len, 0);
-						if (retval > 0)
-						{
-							printf("socket:%d\tsend %d\t\tbytes\n", sock, retval);
-							p = ptr->next;
-							ptr->next = ptr->next->next;
-							free(p);
-							
-						}
-						else if (errno == EAGAIN|errno==EWOULDBLOCK|errno==EINTR)
-							break;
-					}
-					ptr = ptr->next;
+					printf("socket:%d\tsend %d\t\tbytes\n", sock, retval);
+					p = ptr->next;
+					ptr->next = ptr->next->next;
+					free(p);
 				}
+				else if (errno == EAGAIN | errno == EWOULDBLOCK | errno == EINTR)
+					break;
+				ptr = ptr->next;
 			}
 		}
+
 		FD_ZERO(&writefds);
 		FD_ZERO(&readfds);
 	}

@@ -32,12 +32,13 @@ int main(int argc, char* argv[])
 	listen(s, 5);
 
 	while (1) {
-
+	start:
 		len = sizeof(remote_addr);
 		newsock = accept(s, (sockaddr*)&remote_addr, &len);
 		if (newsock == -1) {
 			break;
 		}
+		ioctlsocket(newsock, FIONBIO, &arg);
 		printf("accept a connection , socket = %d\n",newsock);
 		param.newsock = newsock;
 		param.queue_index = queue_status_pos;
@@ -54,7 +55,7 @@ int main(int argc, char* argv[])
 				queue_status_pos = 0;
 				send(newsock, buf, sizeof(buf), 0);
 				closesocket(newsock);
-				continue;
+				goto start;
 			}
 		}
 
@@ -68,6 +69,7 @@ int main(int argc, char* argv[])
 				0,                           // use default creation flags 
 				&dwThreadId);                // returns the thread identifier 
 				queue_list_table[queue_status_pos].proc_index = dwThreadId;
+				queue_list_table[queue_status_pos].queue_proc_set = PROC_ON;
 		}
 		//将套接字加入某个队列
 		printf("# NEWSOCK!!!======================== SOCKET:%d ====== IN QUEUE:%d ========================\n", newsock, queue_status_pos);
